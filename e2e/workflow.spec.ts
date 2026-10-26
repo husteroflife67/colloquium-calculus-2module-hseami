@@ -108,13 +108,11 @@ test("export import validation and reset cancellation", async ({ page }) => {
   const path = await download.path();
   await page.getByLabel("Импорт JSON", { exact: true }).setInputFiles(path!);
   await expect(page.getByRole("status")).toContainText("Данные проверены");
-  await page
-    .getByLabel("Импорт JSON", { exact: true })
-    .setInputFiles({
-      name: "bad.json",
-      mimeType: "application/json",
-      buffer: Buffer.from('{"schemaVersion":99}'),
-    });
+  await page.getByLabel("Импорт JSON", { exact: true }).setInputFiles({
+    name: "bad.json",
+    mimeType: "application/json",
+    buffer: Buffer.from('{"schemaVersion":99}'),
+  });
   await expect(page.getByRole("status")).toContainText("не соответствует");
   page.once("dialog", (d) => d.dismiss());
   await page
@@ -171,4 +169,41 @@ test("mobile reading and dark theme fit viewport", async ({ page }) => {
     ),
   ).toBe(true);
   await expect(page.locator(".katex-error")).toHaveCount(0);
+});
+test("new oral question exposes hint answer criteria mistake and persists separate rating", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Вопросы принимающего", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Поиск вопроса", exact: true })
+    .fill("отрицание условия Коши");
+  const card = page.locator(".question");
+  await expect(card).toHaveCount(1);
+  await card.getByRole("button", { name: "Подсказка", exact: true }).click();
+  await expect(card.locator(".hint")).toContainText("фиксированная точность");
+  await card
+    .getByRole("button", { name: "Открыть ответ", exact: true })
+    .click();
+  await expect(card).toContainText("существует ε₀>0");
+  await expect(card).toContainText("Достаточно сказать:");
+  await expect(card).toContainText("Типичная ошибка:");
+  await card.getByRole("button", { name: "Знаю", exact: true }).click();
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Вопросы принимающего", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Поиск вопроса", exact: true })
+    .fill("отрицание условия Коши");
+  await card
+    .getByRole("button", { name: "Открыть ответ", exact: true })
+    .click();
+  await expect(
+    card.getByRole("button", { name: "Знаю", exact: true }),
+  ).toHaveClass("active");
+  await page.getByRole("button", { name: "Обзор", exact: true }).click();
+  await expect(page.locator(".learning-summary")).toContainText("1 / 207");
 });

@@ -2,8 +2,26 @@ import { numbers } from "./numbers";
 import { sequences } from "./sequences";
 import { functions } from "./functions";
 import { practice } from "./practice";
+import { extraQuestions } from "./extra-questions";
 import type { Topic } from "./types";
-export const items = [...numbers, ...sequences, ...functions, ...practice];
+export const items = [...numbers, ...sequences, ...functions, ...practice].map(
+  (item) => ({
+    ...item,
+    questions: [
+      ...item.questions,
+      ...extraQuestions
+        .filter((q) => q.target === item.id)
+        .map(({ target: _target, ...q }) => ({
+          ...q,
+          topic: item.topic,
+          program: item.program,
+          source: `Авторское уточнение по источнику: ${item.source}`,
+          origin: "generated" as const,
+          review: "self_reviewed" as const,
+        })),
+    ],
+  }),
+);
 export const topics: Topic[] = [
   { id: 1, title: "Вещественные числа", subtitle: "Полнота · точные грани" },
   {

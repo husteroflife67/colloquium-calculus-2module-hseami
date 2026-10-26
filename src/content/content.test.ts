@@ -1,8 +1,21 @@
 import { describe, expect, it } from "vitest";
 import katex from "katex";
 import { items, topics } from "./index";
+import { extraQuestions } from "./extra-questions";
 
 describe("Учебный корпус", () => {
+  it("связывает каждое дополнительное уточнение с существующим объектом ровно один раз", () => {
+    for (const extra of extraQuestions) {
+      const parent = items.find((i) => i.id === extra.target);
+      expect(parent, `Нет родителя ${extra.target}`).toBeDefined();
+      expect(parent!.questions.filter((q) => q.id === extra.id)).toHaveLength(
+        1,
+      );
+      expect(
+        items.flatMap((i) => i.questions).filter((q) => q.id === extra.id),
+      ).toHaveLength(1);
+    }
+  });
   it("покрывает все 21 вопрос и восемь тем", () => {
     expect(topics.map((t) => t.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     for (let n = 1; n <= 21; n++) {
