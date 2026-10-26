@@ -28,7 +28,7 @@ import {
 import "katex/dist/katex.min.css";
 import "./style.css";
 import { items, topics } from "./content";
-import type { Item, OralQuestion } from "./content/types";
+import type { Item, OralQuestion, SourceReference } from "./content/types";
 import {
   emptyData,
   validateImport,
@@ -808,7 +808,9 @@ function App() {
                       >
                         <a href="#statement">Формулировка</a>
                         {detail.kind !== "definition" && (
-                          <a href="#proof">Доказательство / решение</a>
+                          <a href={`#${detail.id}-proof`}>
+                            Доказательство / решение
+                          </a>
                         )}
                         <a href="#board">План ответа</a>
                         <a href="#oral">Уточнения</a>
@@ -821,6 +823,7 @@ function App() {
                       <br />
                       {detail.source}
                       <br />
+                      <SourceLinks references={detail.references ?? []} />
                       Статус: {detail.review} ·{" "}
                       {detail.required
                         ? "Требуется воспроизведение"
@@ -871,6 +874,30 @@ function App() {
                           </>
                         )}
                         {page !== "definition" && <Proof item={detail} />}
+                        {detail.supplements?.map((supplement) => (
+                          <details key={supplement.id} className="supplement">
+                            <summary>
+                              Дополнительный разбор: {supplement.title}
+                            </summary>
+                            <p className="muted">
+                              Другой способ разобрать тот же факт. Отдельно в
+                              прогрессе не учитывается. Объяснение составлено ИИ
+                              по дополнительному конспекту; статус:{" "}
+                              {supplement.review}.
+                            </p>
+                            <SourceLinks references={[supplement.source]} />
+                            <Proof item={{ ...supplement, kind: "theory" }} />
+                            <h3>План этого разбора</h3>
+                            <ol>
+                              {supplement.board.map((step, j) => (
+                                <li key={j}>
+                                  <MathText text={step} />
+                                </li>
+                              ))}
+                            </ol>
+                            <p className="muted">{supplement.review_notes}</p>
+                          </details>
+                        ))}
                         <h3 id="board">План ответа у доски</h3>
                         <ol>
                           {detail.board.map((p, j) => (
@@ -1223,6 +1250,21 @@ function App() {
                 <a href={`${import.meta.env.BASE_URL}sources/notes.pdf`}>
                   Конспект (PDF)
                 </a>
+                <p>
+                  Дополнительно подключён исправленный конспект по материалам Н.
+                  Белянко от 19 октября 2026 года. Это учебный источник для
+                  сверки, а не подтверждение официального пула. Его нумерация
+                  отличается от программы; разделы вне программы не включены в
+                  обязательные билеты. Ссылки ведут к конкретным разделам и
+                  страницам PDF.
+                </p>
+                <a
+                  href={`${import.meta.env.BASE_URL}sources/corrected-guide.pdf`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Исправленный конспект (PDF)
+                </a>
               </section>
             </div>
           )}
@@ -1235,7 +1277,31 @@ function App() {
     </div>
   );
 }
-function Proof({ item }: { item: Item }) {
+function SourceLinks({ references }: { references: SourceReference[] }) {
+  if (!references.length) return null;
+  return (
+    <div className="source-references">
+      <span>Дополнительный источник для сверки:</span>
+      {references.map((ref) => (
+        <div key={ref.id}>
+          <a
+            href={`${import.meta.env.BASE_URL}${ref.path}#page=${ref.page}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {ref.title} · §{ref.section}, с. {ref.page} ↗
+          </a>
+          {ref.note && <div>{ref.note}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+function Proof({
+  item,
+}: {
+  item: Pick<Item, "id" | "kind" | "idea" | "proof">;
+}) {
   const [mode, setMode] = useState("hidden");
   const [steps, setSteps] = useState(1);
   useEffect(() => {
@@ -1243,7 +1309,7 @@ function Proof({ item }: { item: Item }) {
     setSteps(1);
   }, [item.id]);
   return (
-    <section className="proof" id="proof">
+    <section className="proof" id={`${item.id}-proof`}>
       <h3>{item.kind === "practice" ? "Решение" : "Доказательство"}</h3>
       <div className="segmented">
         {[

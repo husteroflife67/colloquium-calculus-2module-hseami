@@ -2,8 +2,59 @@ import { describe, expect, it } from "vitest";
 import katex from "katex";
 import { items, topics } from "./index";
 import { extraQuestions } from "./extra-questions";
+import { guideReferences, guideQuestions } from "./guide";
+import { numbers } from "./numbers";
+import { sequences } from "./sequences";
+import { functions } from "./functions";
+import { practice } from "./practice";
+import { readFileSync } from "node:fs";
 
 describe("Учебный корпус", () => {
+  it("подключает дополнительный конспект без изменения объектов прогресса и программы", () => {
+    expect(items.map((i) => i.id)).toEqual(
+      [...numbers, ...sequences, ...functions, ...practice].map((i) => i.id),
+    );
+    for (let n = 1; n <= 21; n++) {
+      expect(guideReferences[n]?.length).toBeGreaterThan(0);
+      for (const ref of guideReferences[n]) {
+        expect(ref.path).toBe("sources/corrected-guide.pdf");
+        expect(
+          Number.isInteger(ref.page) && ref.page >= 1 && ref.page <= 20,
+        ).toBe(true);
+        expect(["2.7", "2.24", "2.25"]).not.toContain(ref.section);
+      }
+    }
+    expect(guideReferences[6].map((r) => r.section)).toEqual(["2.6"]);
+    const pdf = readFileSync(
+      new URL("../../public/sources/corrected-guide.pdf", import.meta.url),
+    );
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+    for (const q of guideQuestions) {
+      expect(
+        items
+          .find((i) => i.id === q.target)
+          ?.questions.filter((o) => o.id === q.id),
+      ).toHaveLength(1);
+    }
+    const supplements = items.flatMap((i) => i.supplements ?? []);
+    expect(supplements).toHaveLength(2);
+    const allIds = items
+      .flatMap((i) => [i.id, ...i.questions.map((q) => q.id)])
+      .concat(supplements.map((s) => s.id));
+    expect(new Set(allIds).size).toBe(allIds.length);
+    for (const i of items)
+      for (const proof of i.supplements ?? []) {
+        expect(proof.topic).toBe(i.topic);
+        expect(proof.program).toEqual(i.program);
+        expect(proof.origin).toBe("generated");
+        expect(proof.review).toBe("self_reviewed");
+        expect(proof.proof.length).toBeGreaterThanOrEqual(4);
+        expect(proof.review_notes.length).toBeGreaterThan(20);
+        expect(
+          proof.dependencies.every((id) => items.some((x) => x.id === id)),
+        ).toBe(true);
+      }
+  });
   it("связывает каждое дополнительное уточнение с существующим объектом ровно один раз", () => {
     for (const extra of extraQuestions) {
       const parent = items.find((i) => i.id === extra.target);
@@ -79,7 +130,10 @@ describe("Учебный корпус", () => {
       expect(path.has(id), `Цикл через ${id}`).toBe(false);
       if (complete.has(id)) return;
       const next = new Set(path).add(id);
-      for (const dependency of byId.get(id)!.dependencies)
+      for (const dependency of [
+        ...byId.get(id)!.dependencies,
+        ...(byId.get(id)!.supplements ?? []).flatMap((s) => s.dependencies),
+      ])
         visit(dependency, next);
       complete.add(id);
     }

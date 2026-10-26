@@ -34,6 +34,30 @@ export interface Item {
   examples: string[];
   questions: OralQuestion[];
   required: boolean;
+  references?: SourceReference[];
+  supplements?: SupplementalProof[];
+}
+export interface SourceReference {
+  id: string;
+  title: string;
+  path: string;
+  section: string;
+  page: number;
+  note?: string;
+}
+export interface SupplementalProof {
+  id: string;
+  topic: number;
+  program: number[];
+  title: string;
+  source: SourceReference;
+  origin: Origin;
+  review: Review;
+  review_notes: string;
+  dependencies: string[];
+  idea: string;
+  proof: string[];
+  board: string[];
 }
 export interface Topic {
   id: number;

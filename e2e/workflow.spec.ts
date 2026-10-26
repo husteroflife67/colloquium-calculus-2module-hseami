@@ -205,5 +205,55 @@ test("new oral question exposes hint answer criteria mistake and persists separa
     card.getByRole("button", { name: "Знаю", exact: true }),
   ).toHaveClass("active");
   await page.getByRole("button", { name: "Обзор", exact: true }).click();
-  await expect(page.locator(".learning-summary")).toContainText("1 / 207");
+  await expect(page.locator(".learning-summary")).toContainText("1 / 209");
+});
+test("supplementary source and alternative proofs keep the original progress objects", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Теория и доказательства", exact: true })
+    .click();
+  await page
+    .locator(".library-card")
+    .filter({ hasText: "Больцано–Вейерштрасс и критерий частичных пределов" })
+    .click();
+  await expect(page.locator(".provenance a").first()).toHaveAttribute(
+    "href",
+    "/sources/corrected-guide.pdf#page=13",
+  );
+  const alternative = page.locator("details.supplement");
+  await alternative.locator("summary").click();
+  await alternative
+    .getByRole("button", { name: "Полностью", exact: true })
+    .click();
+  await expect(alternative.locator(".proof-steps li")).toHaveCount(5);
+  await expect(alternative).toContainText(
+    "Разные индексы не требуют разных значений",
+  );
+  await expect(page.locator(".reading > .ratings button.active")).toHaveCount(
+    0,
+  );
+  const htmlIds = await page
+    .locator("[id]")
+    .evaluateAll((nodes) => nodes.map((n) => n.id));
+  expect(new Set(htmlIds).size).toBe(htmlIds.length);
+  await page.getByRole("button", { name: "К списку", exact: false }).click();
+  await page
+    .locator(".library-card")
+    .filter({ hasText: "Критерий Коши для предела функции" })
+    .click();
+  await page.locator("details.supplement summary").click();
+  await page
+    .locator("details.supplement")
+    .getByRole("button", { name: "Полностью", exact: true })
+    .click();
+  await expect(page.locator("details.supplement .proof-steps li")).toHaveCount(
+    6,
+  );
+  await expect(page.locator(".katex-error")).toHaveCount(0);
+  const pdf = await request.get("/sources/corrected-guide.pdf");
+  expect(pdf.ok()).toBe(true);
+  expect((await pdf.body()).subarray(0, 5).toString()).toBe("%PDF-");
 });

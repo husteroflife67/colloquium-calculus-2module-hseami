@@ -1475,3 +1475,31 @@ footer > span:first-of-type {
 .reading h3[id] {
   scroll-margin-top: 25px;
 }
+.source-references {
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.source-references > span {
+  color: var(--muted);
+}
+.source-references > div > div {
+  margin-top: 5px;
+}
+.supplement {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 15px 18px;
+  margin: 24px 0;
+}
+.supplement > summary {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 550;
+}
+.supplement .proof h3 {
+  margin-top: 18px;
+}
