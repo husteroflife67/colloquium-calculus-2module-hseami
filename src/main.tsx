@@ -304,7 +304,7 @@ function App() {
             </div>
             <a
               className="source-link"
-              href="/sources/program.pdf"
+              href={`${import.meta.env.BASE_URL}sources/program.pdf`}
               target="_blank"
               rel="noreferrer"
             >
@@ -561,7 +561,11 @@ function App() {
                     {items.length}. Это полнота материалов, а не ваша
                     готовность.
                   </p>
-                  <a href="/sources/notes.pdf" target="_blank" rel="noreferrer">
+                  <a
+                    href={`${import.meta.env.BASE_URL}sources/notes.pdf`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     Открыть конспект лекций <ArrowUpRight size={14} />
                   </a>
                 </section>
@@ -1212,8 +1216,13 @@ function App() {
                   вопросы программы и состав материалов доступны в тематическом
                   плане.
                 </p>
-                <a href="/sources/program.pdf">Программа (PDF)</a> ·{" "}
-                <a href="/sources/notes.pdf">Конспект (PDF)</a>
+                <a href={`${import.meta.env.BASE_URL}sources/program.pdf`}>
+                  Программа (PDF)
+                </a>{" "}
+                ·{" "}
+                <a href={`${import.meta.env.BASE_URL}sources/notes.pdf`}>
+                  Конспект (PDF)
+                </a>
               </section>
             </div>
           )}
