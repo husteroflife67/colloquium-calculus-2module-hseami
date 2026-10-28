@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { items } from "./content";
+import { scheduleReview } from "./repetition";
 import {
   baseScore,
   availableExtra,
@@ -28,6 +29,12 @@ describe("ticket rules", () => {
       const t = generateTicket(items, seed, "uniform", {}, []);
       expect(t).toEqual(generateTicket(items, seed, "uniform", {}, []));
       expect(new Set(t.definitionIds).size).toBe(4);
+      expect(
+        t.definitionIds.every(
+          (id) =>
+            items.find((i) => i.id === id)?.definitionNumber !== undefined,
+        ),
+      ).toBe(true);
       expect(items.find((i) => i.id === t.theoryId)?.required).toBe(true);
       expect(t.taskId).not.toBe(t.shortId);
     }
@@ -67,6 +74,43 @@ describe("timing", () => {
   });
 });
 describe("persistence import", () => {
+  it("сохраняет старую историю со вспомогательными определениями и новые расписания", () => {
+    const d = emptyData();
+    const t = generateTicket(items, 4, "uniform", {}, []);
+    t.definitionIds = [
+      "def-decimal",
+      "def-bounds",
+      "def-nested",
+      "def-monotone",
+    ];
+    d.history = [
+      {
+        id: "legacy",
+        date: "2026-10-26T12:00:00Z",
+        ticket: t,
+        scores: [0, 0, 0, 0, 0, 0, 0],
+        base: 0,
+        extra: 0,
+        duration: 20,
+        hints: 0,
+        weak: [],
+      },
+    ];
+    d.ratings["def-bounds"] = "known";
+    d.drafts["def-nested"] = "Старый черновик";
+    const ids = new Set(items.map((i) => i.id));
+    expect(validateImport(JSON.parse(JSON.stringify(d)), ids, items)).toEqual(
+      d,
+    );
+    d.schedules = {
+      "def-bounds": scheduleReview(undefined, "known", Date.UTC(2026, 9, 29)),
+    };
+    expect(validateImport(JSON.parse(JSON.stringify(d)), ids, items)).toEqual(
+      d,
+    );
+    d.schedules["def-bounds"].due += 1000;
+    expect(() => validateImport(d, ids, items)).toThrow();
+  });
   const ids = new Set(items.map((i) => i.id));
   it("roundtrips progress and drafts", () => {
     const d = emptyData();

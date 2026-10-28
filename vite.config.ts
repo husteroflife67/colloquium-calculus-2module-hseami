@@ -13,6 +13,8 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes("katex")) return "math";
           if (id.includes("node_modules")) return "vendor";
+          if (id.includes("/src/content/official-definitions"))
+            return "definitions";
           if (id.includes("/src/content/")) return "content";
         },
       },

@@ -8,12 +8,60 @@ import { sequences } from "./sequences";
 import { functions } from "./functions";
 import { practice } from "./practice";
 import { readFileSync } from "node:fs";
+import {
+  officialDefinitionList,
+  newOfficialDefinitions,
+} from "./official-definitions";
 
 describe("Учебный корпус", () => {
-  it("подключает дополнительный конспект без изменения объектов прогресса и программы", () => {
-    expect(items.map((i) => i.id)).toEqual(
-      [...numbers, ...sequences, ...functions, ...practice].map((i) => i.id),
+  it("покрывает все 43 официальных вопроса отдельными проверенными ответами и точными ссылками", () => {
+    const official = items
+      .filter((i) => i.definitionNumber !== undefined)
+      .sort((a, b) => a.definitionNumber! - b.definitionNumber!);
+    expect(official.map((i) => i.definitionNumber)).toEqual(
+      Array.from({ length: 43 }, (_, i) => i + 1),
     );
+    expect(new Set(official.map((i) => i.id)).size).toBe(43);
+    expect(officialDefinitionList).toHaveLength(43);
+    for (const card of official) {
+      expect(card.kind).toBe("definition");
+      expect(card.officialPrompt!.length).toBeGreaterThan(20);
+      expect(card.statement.length).toBeGreaterThan(50);
+      expect(card.origin).toBe("generated");
+      expect(
+        card.references!.some(
+          (r) =>
+            r.path === "sources/definitions.pdf" &&
+            r.page === (card.definitionNumber! <= 37 ? 1 : 2),
+        ),
+      ).toBe(true);
+    }
+    expect(
+      items.filter(
+        (i) => i.kind === "definition" && i.definitionNumber === undefined,
+      ),
+    ).toHaveLength(6);
+    expect(
+      items.find((i) => i.id === "def-bounds")?.definitionNumber,
+    ).toBeUndefined();
+    expect(
+      items.find((i) => i.id === "def-nested")?.definitionNumber,
+    ).toBeUndefined();
+    expect(official[1].id).toBe("def-bounds-and-maximum");
+    expect(official[11].id).toBe("def-nested-principle");
+    expect(
+      readFileSync(
+        new URL("../../public/sources/definitions.pdf", import.meta.url),
+      )
+        .subarray(0, 5)
+        .toString(),
+    ).toBe("%PDF-");
+  });
+  it("подключает дополнительный конспект без изменения объектов прогресса и программы", () => {
+    const legacy = [...numbers, ...sequences, ...functions, ...practice];
+    expect(items).toHaveLength(legacy.length + newOfficialDefinitions.length);
+    for (const old of legacy)
+      expect(items.find((i) => i.id === old.id)?.kind).toBe(old.kind);
     for (let n = 1; n <= 21; n++) {
       expect(guideReferences[n]?.length).toBeGreaterThan(0);
       for (const ref of guideReferences[n]) {

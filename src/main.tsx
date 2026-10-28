@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import katex from "katex";
+import { MathText } from "./MathText";
+import { LearningToday } from "./LearningToday";
+import { OralExaminer } from "./OralExaminer";
+import { scheduleReview, dueItems } from "./repetition";
 import {
   BookOpen,
   LayoutDashboard,
@@ -65,30 +68,6 @@ function load() {
     return emptyData();
   }
 }
-function MathText({ text }: { text: string }) {
-  return (
-    <>
-      {text.split(/(\$\$[\s\S]*?\$\$|\$[^$]+\$)/g).map((p, i) =>
-        p.startsWith("$") ? (
-          <span
-            key={i}
-            className="formula"
-            dangerouslySetInnerHTML={{
-              __html: katex.renderToString(p.replace(/^\$\$?|\$\$?$/g, ""), {
-                throwOnError: false,
-                displayMode: p.startsWith("$$"),
-                strict: "ignore",
-                trust: false,
-              }),
-            }}
-          />
-        ) : (
-          <React.Fragment key={i}>{p}</React.Fragment>
-        ),
-      )}
-    </>
-  );
-}
 const ratingLabels: Record<Rating, string> = {
   unknown: "Не знаю",
   partial: "Частично",
@@ -98,9 +77,11 @@ const ratingLabels: Record<Rating, string> = {
 const nav = [
   ["dashboard", "Обзор", LayoutDashboard],
   ["plan", "Тематический план", Map],
+  ["today", "На сегодня", RotateCcw],
   ["definition", "Определения", Layers],
   ["theory", "Теория и доказательства", BookOpen],
   ["questions", "Вопросы принимающего", MessageCircle],
+  ["oral", "Устный экзаменатор", MessageCircle],
   ["practice", "Практика", PenLine],
   ["simulation", "Пробный коллоквиум", Timer],
   ["history", "История", History],
@@ -133,6 +114,7 @@ function App() {
   const [topic, setTopic] = useState(0);
   const [filter, setFilter] = useState("all");
   const [origin, setOrigin] = useState("all");
+  const [definitionScope, setDefinitionScope] = useState("official");
   const [selected, setSelected] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
   const [notice, setNotice] = useState("");
@@ -147,7 +129,14 @@ function App() {
     document.documentElement.dataset.theme = data.theme;
   }, [data]);
   const rate = (id: string, r: Rating) =>
-    setData((d) => ({ ...d, ratings: { ...d.ratings, [id]: r } }));
+    setData((d) => ({
+      ...d,
+      ratings: { ...d.ratings, [id]: r },
+      schedules: {
+        ...(d.schedules ?? {}),
+        [id]: scheduleReview(d.schedules?.[id], r, Date.now()),
+      },
+    }));
   const navigate = (p: string) => {
     setPage(p);
     setSelected(null);
@@ -182,21 +171,42 @@ function App() {
     setSelected(i.id);
     setFlash(false);
   };
-  const visible = items.filter(
-    (i) =>
-      i.kind === page &&
-      (!topic || i.topic === topic) &&
-      (filter === "all" ||
-        (filter === "weak"
-          ? ["unknown", "partial", "repeat"].includes(
-              data.ratings[i.id] ?? "unknown",
-            )
-          : data.ratings[i.id] === filter)) &&
-      (origin === "all" || i.origin === origin) &&
-      (i.title + " " + i.statement + " " + i.program.join(" "))
-        .toLowerCase()
-        .includes(search.toLowerCase()),
-  );
+  const visible = items
+    .filter(
+      (i) =>
+        i.kind === page &&
+        (page !== "definition" ||
+          definitionScope === "all" ||
+          (definitionScope === "official"
+            ? i.definitionNumber !== undefined
+            : i.definitionNumber === undefined)) &&
+        (!topic || i.topic === topic) &&
+        (filter === "all" ||
+          (filter === "weak"
+            ? ["unknown", "partial", "repeat"].includes(
+                data.ratings[i.id] ?? "unknown",
+              )
+            : data.ratings[i.id] === filter)) &&
+        (origin === "all" || i.origin === origin) &&
+        (
+          i.title +
+          " " +
+          i.statement +
+          " " +
+          (i.officialPrompt ?? "") +
+          " " +
+          (i.definitionNumber ?? "") +
+          " " +
+          i.program.join(" ")
+        )
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+    )
+    .sort((a, b) =>
+      page === "definition"
+        ? (a.definitionNumber ?? 1000) - (b.definitionNumber ?? 1000)
+        : 0,
+    );
   const detail = selected ? items.find((i) => i.id === selected) : undefined;
   const ratings = (id: string) => (
     <div className="ratings" aria-label="Самооценка">
@@ -416,8 +426,8 @@ function App() {
                   },
                   {
                     label: "Определения",
-                    value: `${items.filter((i) => i.kind === "definition" && data.ratings[i.id] === "known").length} / ${items.filter((i) => i.kind === "definition").length}`,
-                    sub: "Вспомнили самостоятельно",
+                    value: `${items.filter((i) => i.definitionNumber !== undefined && data.ratings[i.id] === "known").length} / ${items.filter((i) => i.definitionNumber !== undefined).length}`,
+                    sub: "Официальные определения и формулировки",
                     icon: Layers,
                   },
                   {
@@ -443,6 +453,23 @@ function App() {
                   </div>
                 ))}
               </div>
+              <section className="panel today-shortcut">
+                <div>
+                  <h3>Что повторить сегодня</h3>
+                  <p>
+                    {
+                      dueItems(items, data.schedules ?? {}, Date.now()).filter(
+                        (i) => data.schedules?.[i.id],
+                      ).length
+                    }{" "}
+                    назначенных повторений доступно сейчас. Новые материалы — в
+                    порядке официального перечня.
+                  </p>
+                </div>
+                <button className="secondary" onClick={() => navigate("today")}>
+                  Открыть очередь <ArrowRight size={16} />
+                </button>
+              </section>
               <div className="learning-summary">
                 <span>
                   Практика:{" "}
@@ -722,12 +749,54 @@ function App() {
                     </div>
                   )}
                   {page === "definition" && (
+                    <>
+                      <div className="info-strip">
+                        Официальный перечень: 43 вопроса на определения и
+                        формулировки. Шесть вспомогательных карточек сохранены
+                        отдельно; новые билеты используют только официальный
+                        перечень. Процент может снизиться из-за добавленных
+                        материалов — старые оценки и история сохранены.{" "}
+                        <a
+                          href={`${import.meta.env.BASE_URL}sources/definitions.pdf`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Открыть перечень (PDF) ↗
+                        </a>
+                      </div>
+                      <label className="field-label">
+                        Состав карточек
+                        <select
+                          aria-label="Состав карточек"
+                          value={definitionScope}
+                          onChange={(e) => setDefinitionScope(e.target.value)}
+                        >
+                          <option value="official">Официальные 43</option>
+                          <option value="support">Вспомогательные 6</option>
+                          <option value="all">Все карточки</option>
+                        </select>
+                      </label>
+                    </>
+                  )}
+                  {page === "definition" && definitionScope !== "support" && (
                     <button
                       className="secondary random-button"
+                      disabled={
+                        visible.filter((i) => i.definitionNumber !== undefined)
+                          .length < 4
+                      }
                       onClick={() => {
-                        const a = [...visible]
-                          .sort(() => Math.random() - 0.5)
-                          .slice(0, 4);
+                        const shuffled = visible
+                          .filter((i) => i.definitionNumber !== undefined)
+                          .slice();
+                        for (let i = shuffled.length - 1; i > 0; i--) {
+                          const j = Math.floor(Math.random() * (i + 1));
+                          [shuffled[i], shuffled[j]] = [
+                            shuffled[j],
+                            shuffled[i],
+                          ];
+                        }
+                        const a = shuffled.slice(0, 4);
                         if (a.length) {
                           setSelected(a[0].id);
                           setQueue(a.map((i) => i.id));
@@ -735,7 +804,7 @@ function App() {
                         }
                       }}
                     >
-                      Случайные 4 карточки <Layers size={16} />
+                      Случайные 4 официальные карточки <Layers size={16} />
                     </button>
                   )}
                   <p className="result-count">
@@ -754,7 +823,9 @@ function App() {
                       >
                         <div className="section-heading">
                           <span className="eyebrow">
-                            ТЕМА {i.topic} · № {i.program.join(", ")}
+                            {i.definitionNumber !== undefined
+                              ? `ОФИЦИАЛЬНЫЙ ВОПРОС ${i.definitionNumber} · ТЕМА ${i.topic}`
+                              : `ТЕМА ${i.topic} · № ${i.program.join(", ")}`}
                           </span>
                           <span className="tiny-status">
                             {data.ratings[i.id]
@@ -797,10 +868,22 @@ function App() {
                   </button>
                   <article className="reading panel">
                     <div className="eyebrow">
-                      ТЕМА {detail.topic} · ВОПРОСЫ ПРОГРАММЫ{" "}
+                      ТЕМА {detail.topic} · ВОПРОСЫ ПРОГРАММЫ ДОКАЗАТЕЛЬСТВ{" "}
                       {detail.program.join(", ")}
                     </div>
-                    <h2>{detail.title}</h2>
+                    <h2>
+                      {detail.definitionNumber !== undefined &&
+                        `${detail.definitionNumber}. `}
+                      {detail.title}
+                    </h2>
+                    {detail.officialPrompt && (
+                      <div className="official-prompt">
+                        <b>Вопрос из официального перечня:</b>
+                        <p>
+                          <MathText text={detail.officialPrompt} />
+                        </p>
+                      </div>
+                    )}
                     {!flash && (
                       <nav
                         className="reading-toc"
@@ -818,7 +901,9 @@ function App() {
                     )}
                     <div className="provenance">
                       {detail.origin === "generated"
-                        ? "Авторский материал · Доказательство составлено ИИ по формулировке курса"
+                        ? detail.kind === "definition"
+                          ? "Ответ и пояснения составлены ИИ по формулировкам курса"
+                          : "Авторский материал · Доказательство составлено ИИ по формулировке курса"
                         : "Материал курса"}
                       <br />
                       {detail.source}
@@ -1061,6 +1146,27 @@ function App() {
                 )}
             </>
           )}
+          {page === "today" && (
+            <LearningToday
+              items={items}
+              schedules={data.schedules ?? {}}
+              onReview={rate}
+              onOpen={open}
+            />
+          )}
+          {page === "oral" && (
+            <OralExaminer
+              items={items}
+              questionRatings={questionRatings}
+              onRateQuestion={(id, r) =>
+                setQuestionRatings((d) => ({ ...d, [id]: r }))
+              }
+              drafts={data.drafts}
+              onDraft={(id, text) =>
+                setData((d) => ({ ...d, drafts: { ...d.drafts, [id]: text } }))
+              }
+            />
+          )}
           {page === "simulation" && (
             <Simulation
               data={data}
@@ -1225,6 +1331,20 @@ function App() {
               <section className="panel">
                 <h2>Источники и честные границы</h2>
                 <p>
+                  Перечень устной части: 43 вопроса из «определения-1.pdf»,
+                  включая формулировки теорем. Номер в нём отличается от номера
+                  в программе доказательств (21 вопрос). Официальность относится
+                  к вопросу; развёрнутые ответы и уточнения составлены ИИ и
+                  проверены отдельно.
+                </p>
+                <a
+                  href={`${import.meta.env.BASE_URL}sources/definitions.pdf`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Официальные 43 вопроса (PDF)
+                </a>
+                <p>
                   Программа и конспект предоставлены пользователем. Программа
                   определяет нумерацию 21 вопроса. Семинарские листки,
                   официальный закрытый пул и отдельные правила не загружены;
@@ -1281,7 +1401,7 @@ function SourceLinks({ references }: { references: SourceReference[] }) {
   if (!references.length) return null;
   return (
     <div className="source-references">
-      <span>Дополнительный источник для сверки:</span>
+      <span>Источники и сверка:</span>
       {references.map((ref) => (
         <div key={ref.id}>
           <a
@@ -1289,7 +1409,9 @@ function SourceLinks({ references }: { references: SourceReference[] }) {
             target="_blank"
             rel="noreferrer"
           >
-            {ref.title} · §{ref.section}, с. {ref.page} ↗
+            {ref.title} ·{" "}
+            {ref.section.startsWith("вопрос") ? ref.section : `§${ref.section}`}
+            , с. {ref.page} ↗
           </a>
           {ref.note && <div>{ref.note}</div>}
         </div>
@@ -1599,10 +1721,22 @@ function Simulation({
   }
   const statement = (id: string) => (
     <div className="sim-item" key={id}>
-      <span className="eyebrow">УЧЕБНОЕ ЗАДАНИЕ · ТЕМА {byId(id).topic}</span>
+      <span className="eyebrow">
+        {byId(id).definitionNumber !== undefined
+          ? `ОФИЦИАЛЬНЫЙ УСТНЫЙ ВОПРОС ${byId(id).definitionNumber}`
+          : "УЧЕБНОЕ ЗАДАНИЕ"}{" "}
+        · ТЕМА {byId(id).topic}
+      </span>
       <h3>{byId(id).title}</h3>
       <p>
-        <MathText text={byId(id).statement} />
+        <MathText
+          text={
+            byId(id).kind === "definition"
+              ? (byId(id).officialPrompt ??
+                `Сформулируйте понятие «${byId(id).title}».`)
+              : byId(id).statement
+          }
+        />
       </p>
     </div>
   );
@@ -1980,7 +2114,16 @@ function Simulation({
                     : run.stage.startsWith("extra")
                       ? [run.extraId]
                       : [run.ticket.taskId, run.ticket.theoryId]),
-              ].map((id) => <Proof key={id} item={byId(id)} />)}
+              ].map((id) =>
+                byId(id).kind === "definition" ? (
+                  <div className="hint" key={id}>
+                    <h3>{byId(id).title}</h3>
+                    <MathText text={byId(id).statement} />
+                  </div>
+                ) : (
+                  <Proof key={id} item={byId(id)} />
+                ),
+              )}
           </div>
         )}
       </section>

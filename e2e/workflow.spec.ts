@@ -52,6 +52,10 @@ test("full ticket stages, extra threshold and irreversible choice, history repla
     .getByRole("button", { name: "Вызов на определения", exact: true })
     .click();
   await expect(page.locator(".sim-item")).toHaveCount(4);
+  for (const prompt of await page.locator(".sim-item p").all())
+    await expect(prompt).toHaveText(
+      /^(Сформулируйте|Приведите|Перечислите|Определите|Что|Как|При|Дайте)/,
+    );
   await page
     .getByRole("button", { name: "Определения сданы", exact: true })
     .click();
@@ -205,7 +209,7 @@ test("new oral question exposes hint answer criteria mistake and persists separa
     card.getByRole("button", { name: "Знаю", exact: true }),
   ).toHaveClass("active");
   await page.getByRole("button", { name: "Обзор", exact: true }).click();
-  await expect(page.locator(".learning-summary")).toContainText("1 / 209");
+  await expect(page.locator(".learning-summary")).toContainText("1 / 290");
 });
 test("supplementary source and alternative proofs keep the original progress objects", async ({
   page,
@@ -256,4 +260,181 @@ test("supplementary source and alternative proofs keep the original progress obj
   const pdf = await request.get("/sources/corrected-guide.pdf");
   expect(pdf.ok()).toBe(true);
   expect((await pdf.body()).subarray(0, 5).toString()).toBe("%PDF-");
+});
+test("all43 official cards are numbered and auxiliary progress is retained", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "predel-v1",
+      JSON.stringify({
+        schemaVersion: 1,
+        ratings: { "def-nested": "known" },
+        checklists: {},
+        drafts: {},
+        history: [],
+        theme: "light",
+      }),
+    ),
+  );
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Определения", exact: true })
+    .first()
+    .click();
+  await expect(page.locator(".library-card")).toHaveCount(43);
+  await page
+    .getByLabel("Поиск материалов", { exact: true })
+    .fill("Внутренняя точка");
+  await page.locator(".library-card").click();
+  await expect(page.locator(".reading h2")).toContainText("32.");
+  await page
+    .getByRole("button", { name: "Открыть карточку", exact: true })
+    .click();
+  await expect(page.locator(".provenance a").first()).toHaveAttribute(
+    "href",
+    "/sources/definitions.pdf#page=1",
+  );
+  await page.getByRole("button", { name: "К списку", exact: false }).click();
+  await page.getByLabel("Поиск материалов", { exact: true }).fill("");
+  await page
+    .getByLabel("Состав карточек", { exact: true })
+    .selectOption("support");
+  await expect(page.locator(".library-card")).toHaveCount(6);
+  await expect(
+    page.locator(".library-card").filter({ hasText: "Вложенные отрезки" }),
+  ).toContainText("Знаю");
+});
+test("spaced review schedules actual recall and survives export and reload", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "На сегодня", exact: true }).click();
+  const card = page.getByRole("region", { name: "Карточка повторения" });
+  await expect(card.getByRole("button", { name: /^Знаю/ })).toHaveCount(0);
+  await card
+    .getByRole("button", { name: "Вспомнил — открыть ответ", exact: true })
+    .click();
+  await card.getByRole("button", { name: /^Знаю/ }).click();
+  await expect(page.getByRole("status")).toContainText("Следующее повторение");
+  await page.reload();
+  await page.getByRole("button", { name: "На сегодня", exact: true }).click();
+  await expect(card).toContainText("Грани, максимум и минимум");
+  await page
+    .getByRole("button", {
+      name: "Показать ближайшие повторения (1)",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Аксиома непрерывности", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Настройки", exact: true }).click();
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Экспорт JSON", exact: true }).click();
+  const download = await pending;
+  await page
+    .getByLabel("Импорт JSON", { exact: true })
+    .setInputFiles((await download.path())!);
+  await expect(page.getByRole("status")).toContainText("Данные проверены");
+});
+test("oral examiner guides six questions and records only explicit self-ratings", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Устный экзаменатор", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Начать беседу", exact: true })
+    .click();
+  await page.locator(".oral-examiner textarea").fill("Мой устный ответ");
+  await page
+    .getByRole("button", {
+      name: "Я закончил основной ответ → к уточнениям",
+      exact: true,
+    })
+    .click();
+  for (let i = 0; i < 6; i++) {
+    await page
+      .getByRole("button", { name: "Открыть строгий ответ", exact: true })
+      .click();
+    await page
+      .getByRole("group", { name: "Самооценка текущего ответа", exact: true })
+      .getByRole("button", {
+        name: i === 0 ? "Знаю" : i === 1 ? "Частично" : "Повторить",
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("button", {
+        name: i === 5 ? "Итоги беседы" : "Следующий вопрос",
+        exact: true,
+      })
+      .click();
+  }
+  await expect(
+    page.getByRole("heading", { name: "Итоги этой беседы", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".oral-examiner")).toContainText(
+    "Оценено уточнений: 6 из 6",
+  );
+  await expect(page.locator(".oral-examiner")).toContainText("Знаю: 1");
+  await expect(page.locator(".oral-examiner")).toContainText("Повторить: 4");
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Устный экзаменатор", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Начать беседу", exact: true })
+    .click();
+  await expect(page.locator(".oral-examiner textarea")).toHaveValue(
+    "Мой устный ответ",
+  );
+});
+test("long official formulas and new modes fit mobile viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Меню", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Определения", exact: true })
+    .first()
+    .click();
+  await page
+    .getByLabel("Поиск материалов", { exact: true })
+    .fill("Пределы в бесконечности");
+  await page.locator(".library-card").click();
+  await page
+    .getByRole("button", { name: "Открыть карточку", exact: true })
+    .click();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await expect(page.locator(".katex-error")).toHaveCount(0);
+  await page.getByRole("button", { name: "Меню", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Устный экзаменатор", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Начать беседу", exact: true })
+    .click();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.getByRole("button", { name: "Меню", exact: true }).click();
+  await page.getByRole("button", { name: "На сегодня", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Вспомнил — открыть ответ", exact: true })
+    .click();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
 });

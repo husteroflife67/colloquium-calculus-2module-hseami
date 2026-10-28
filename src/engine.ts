@@ -1,4 +1,6 @@
 import type { Item } from "./content/types";
+import { isReviewSchedule } from "./repetition";
+import type { ReviewSchedule } from "./repetition";
 export type Rating = "unknown" | "partial" | "known" | "repeat";
 export type Ticket = {
   seed: number;
@@ -25,6 +27,7 @@ export type Data = {
   drafts: Record<string, string>;
   history: HistoryEntry[];
   theme: "light" | "dark";
+  schedules?: Record<string, ReviewSchedule>;
 };
 export const emptyData = (): Data => ({
   schemaVersion: 1,
@@ -105,10 +108,11 @@ export function generateTicket(
       );
     return out;
   };
-  const defs = shuffled(pool.filter((i) => i.kind === "definition")).slice(
-    0,
-    4,
-  );
+  const defs = shuffled(
+    pool.filter(
+      (i) => i.kind === "definition" && i.definitionNumber !== undefined,
+    ),
+  ).slice(0, 4);
   const tasks = shuffled(pool.filter((i) => i.kind === "practice"));
   const theory = shuffled(
     pool.filter((i) => i.kind === "theory" && i.required),
@@ -159,6 +163,16 @@ export function validateImport(
   for (const [k, v] of Object.entries(d.drafts))
     if (!ids.has(k) || typeof v !== "string" || v.length > 100000)
       return fail();
+  if (d.schedules !== undefined) {
+    if (
+      !d.schedules ||
+      typeof d.schedules !== "object" ||
+      Array.isArray(d.schedules)
+    )
+      return fail();
+    for (const [id, value] of Object.entries(d.schedules))
+      if (!ids.has(id) || !isReviewSchedule(value)) return fail();
+  }
   for (const [k, v] of Object.entries(d.checklists))
     if (
       !/^[1-8]$/.test(k) ||
@@ -223,6 +237,7 @@ export function validateImport(
     drafts: { ...d.drafts },
     history: d.history,
     theme: d.theme,
+    ...(d.schedules !== undefined ? { schedules: { ...d.schedules } } : {}),
   };
 }
 export type Stage =

@@ -18,6 +18,8 @@ export interface OralQuestion {
 export interface Item {
   id: string;
   kind: "definition" | "theory" | "practice";
+  definitionNumber?: number;
+  officialPrompt?: string;
   topic: number;
   program: number[];
   title: string;

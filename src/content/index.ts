@@ -4,15 +4,43 @@ import { functions } from "./functions";
 import { practice } from "./practice";
 import { extraQuestions } from "./extra-questions";
 import { guideReferences, guideSupplements, guideQuestions } from "./guide";
+import {
+  newOfficialDefinitions,
+  officialDefinitionList,
+  officialDefinitionOverrides,
+  definitionSource,
+} from "./official-definitions";
 import type { Topic, Item } from "./types";
 export const items: Item[] = [
   ...numbers,
   ...sequences,
   ...functions,
   ...practice,
+  ...newOfficialDefinitions,
 ].map((item) => ({
   ...item,
+  title:
+    officialDefinitionList.find((d) => d.itemId === item.id)?.title ??
+    item.title,
+  review_notes: officialDefinitionOverrides[item.id]
+    ? item.review_notes +
+      " Формулировка ответа дополнительно сверена с официальным перечнем отдельным проходом C от 29.10.2026."
+    : item.review_notes,
+  ...(officialDefinitionList.find((d) => d.itemId === item.id)
+    ? {
+        definitionNumber: officialDefinitionList.find(
+          (d) => d.itemId === item.id,
+        )!.number,
+        officialPrompt: officialDefinitionList.find(
+          (d) => d.itemId === item.id,
+        )!.prompt,
+      }
+    : {}),
+  statement: officialDefinitionOverrides[item.id] ?? item.statement,
   references: [
+    ...officialDefinitionList
+      .filter((d) => d.itemId === item.id)
+      .map((d) => definitionSource(d.number)),
     ...new Map(
       item.program
         .flatMap((n) => guideReferences[n] ?? [])

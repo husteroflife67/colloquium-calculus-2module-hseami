@@ -9,7 +9,7 @@ test("production app and PDFs work under GitHub Pages repository path", async ({
   await expect(
     page.getByRole("heading", { name: "Обзор", exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".learning-summary")).toContainText("0 / 209");
+  await expect(page.locator(".learning-summary")).toContainText("0 / 290");
   const program = page.getByRole("link", {
     name: "Программа курса",
     exact: true,
@@ -18,7 +18,12 @@ test("production app and PDFs work under GitHub Pages repository path", async ({
     "href",
     "/colloquium-calculus-2module-hseami/sources/program.pdf",
   );
-  for (const file of ["program.pdf", "notes.pdf", "corrected-guide.pdf"]) {
+  for (const file of [
+    "program.pdf",
+    "notes.pdf",
+    "corrected-guide.pdf",
+    "definitions.pdf",
+  ]) {
     const response = await request.get("sources/" + file);
     expect(response.ok()).toBe(true);
     expect(response.headers()["content-type"]).toContain("application/pdf");
